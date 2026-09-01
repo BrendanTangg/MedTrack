@@ -57,6 +57,31 @@ with FaceLandmarker.create_from_options(options) as landmarker:
                 x = int(lm.x * w)
                 y = int(lm.y * h)
                 cv2.circle(frame, (x, y), 1, (0, 255, 0), -1)
+
+            upper_lip = face_landmarks[13]
+            lower_lip = face_landmarks[14]
+
+            left_mouth = face_landmarks[61]
+            right_mouth = face_landmarks[291]
+
+            upper_y = int(upper_lip.y * h)
+            lower_y = int(lower_lip.y * h)
+
+            left_x = int(left_mouth.x * w)
+            right_x = int(right_mouth.x * w)
+
+            mouth_opening = abs(upper_y - lower_y)
+            mouth_width = abs(right_x - left_x)
+
+            mouth_ratio = mouth_opening / mouth_width
+
+            if mouth_ratio > 0.1:
+                mouth_status = "Mouth Open"
+            else:
+                mouth_status = "Mouth Closed"
+
+            cv2.putText(frame, mouth_status, (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+
         cv2.imshow("Webcam", frame)
         if cv2.waitKey(1) == ord('q'):
             break
