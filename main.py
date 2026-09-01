@@ -51,10 +51,11 @@ with FaceLandmarker.create_from_options(options) as landmarker:
             h, w = frame.shape[:2]
             face_landmarks = latest_result.face_landmarks[0]
 
-            for lm in face_landmarks:
+            mouth_indices = [61, 291, 13, 14]
+            for index in mouth_indices:
+                lm = face_landmarks[index]
                 x = int(lm.x * w)
                 y = int(lm.y * h)
-
                 cv2.circle(frame, (x, y), 1, (0, 255, 0), -1)
         cv2.imshow("Webcam", frame)
         if cv2.waitKey(1) == ord('q'):
