@@ -47,41 +47,66 @@ with FaceLandmarker.create_from_options(options) as landmarker:
         # Convert the frame from BGR to HSV
         hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-        # Blue color range
-        lower_blue = np.array([100, 100, 100])
-        upper_blue = np.array([130, 255, 255])
+        # White color range
+        lower_white = np.array([0, 0, 160])
+        upper_white = np.array([179, 45, 255])
 
-        # lower_red2 = np.array([170, 100, 100])
-        # upper_red2 = np.array([180, 255, 255])
+        # Create mask for white pixels
+        mask = cv2.inRange(hsv_frame, lower_white, upper_white)
 
-        # Create two masks because red wraps around the HSV color scale
-        mask = cv2.inRange(hsv_frame, lower_blue, upper_blue)
-        # mask2 = cv2.inRange(hsv_frame, lower_red2, upper_red2)
+        kernel = np.ones((3, 3), np.uint8)
 
-        pill_mask = mask
+        mask = cv2.morphologyEx(
+            mask,
+            cv2.MORPH_CLOSE,
+            kernel
+        )
 
-        # Find red objects
-        contours, _ = cv2.findContours(pill_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Find white objects
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         pill_center = None
 
-        for contour in contours:
+        best_contour = None
+        best_score = -1
 
+        for contour in contours:
             area = cv2.contourArea(contour)
 
-            # Ignore tiny red objects/noise
-            if area > 100:
+            if area < 20 or area > 40:
+                continue
 
-                x, y, pill_w, pill_h = cv2.boundingRect(contour)
+            x, y, pill_w, pill_h = cv2.boundingRect(contour)
 
-                pill_x = x + pill_w // 2
-                pill_y = y + pill_h // 2
+            aspect_ratio = pill_w / pill_h
 
-                pill_center = (pill_x, pill_y)
+            if not (0.5 < aspect_ratio < 2.5):
+                continue
 
-                cv2.rectangle(frame, (x, y), (x+pill_w, y+pill_h), (0, 255, 255), 2)
-                cv2.circle(frame, pill_center, 3, (0, 255, 255), -1)
-                cv2.putText(frame, "Pill", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+            print(
+                "area:", area,
+                "width:", pill_w,
+                "height:", pill_h,
+                "aspect:", round(aspect_ratio, 2)
+            )
+
+            score = area
+
+            if score > best_score:
+                best_score = score
+                best_contour = contour
+
+        if best_contour is not None:
+            x, y, pill_w, pill_h = cv2.boundingRect(best_contour)
+
+            pill_x = x + pill_w // 2
+            pill_y = y + pill_h // 2
+
+            pill_center = (pill_x, pill_y)
+
+            cv2.rectangle(frame, (x, y), (x+pill_w, y+pill_h), (0, 255, 255), 2)
+            cv2.circle(frame, pill_center, 3, (0, 255, 255), -1)
+            cv2.putText(frame, "Pill", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
@@ -127,9 +152,21 @@ with FaceLandmarker.create_from_options(options) as landmarker:
             else:
                 mouth_status = "Mouth Closed"
 
+            pill_in_mouth = False
+
+            if pill_center is not None:
+                pill_x, pill_y = pill_center
+
+                if (left_x < pill_x < right_x and upper_y < pill_y < lower_y):
+                    pill_in_mouth = True
+
+            cv2.rectangle(frame, (left_x, upper_y), (right_x, lower_y), (255, 0, 255), 2)
             cv2.putText(frame, mouth_status, (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+            if pill_in_mouth and mouth_ratio > 0.1:
+                cv2.putText(frame, "Pill Entering Mouth", (30, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
         cv2.imshow("Webcam", frame)
+        cv2.imshow("Pill Mask", mask)
         if cv2.waitKey(1) == ord('q'):
             break
 
