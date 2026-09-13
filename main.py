@@ -189,11 +189,28 @@ with FaceLandmarker.create_from_options(face_options) as face_landmarker:
             h, w = frame.shape[:2]
 
             for hand_landmarks in latest_hand_result.hand_landmarks:
+                hand_xs = []
+                hand_ys = []
                 for lm in hand_landmarks:
                     x = int(lm.x * w)
                     y = int(lm.y * h)
 
+                    hand_xs.append(x)
+                    hand_ys.append(y)
+
                     cv2.circle(frame, (x, y), 2, (255, 0, 0), -1)
+
+                padding = 20
+
+                hand_left = max(0, min(hand_xs) - padding)
+                hand_right = min(w, max(hand_xs) + padding)
+
+                hand_top = max(0, min(hand_ys) - padding)
+                hand_bottom = min(h, max(hand_ys) + padding)
+
+                cv2.rectangle(frame, (hand_left, hand_top), (hand_right, hand_bottom), (255, 0, 0))
+
+                hand_region = frame[hand_top:hand_bottom, hand_left:hand_right]
 
         cv2.imshow("Webcam", frame)
         cv2.imshow("Pill Mask", mask)
