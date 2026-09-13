@@ -5,7 +5,8 @@ from mediapipe.tasks.python import vision
 import time
 import numpy as np
 
-model_path = "models/face_landmarker.task"
+face_model_path = "models/face_landmarker.task"
+hand_model_path = "models/hand_landmarker.task"
 
 BaseOptions = mp.tasks.BaseOptions
 FaceLandmarker = mp.tasks.vision.FaceLandmarker
@@ -13,21 +14,39 @@ FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
 FaceLandmarkerResult = mp.tasks.vision.FaceLandmarkerResult
 VisionRunningMode = mp.tasks.vision.RunningMode
 
-latest_result = None
+HandLandmarker = mp.tasks.vision.HandLandmarker
+HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
+HandLandmarkerResult = mp.tasks.vision.HandLandmarkerResult
+
+latest_face_result = None
+latest_hand_result = None
 
 # Create a face landmarker instance with the live stream mode:
-def print_result(result: FaceLandmarkerResult, output_image: mp.Image, timestamp_ms: int):
+def face_print_result(result: FaceLandmarkerResult, output_image: mp.Image, timestamp_ms: int):
     print('face landmarker result: {}'.format(result))
-    global latest_result
-    latest_result = result
+    global latest_face_result
+    latest_face_result = result
 
-options = FaceLandmarkerOptions(
-    base_options=BaseOptions(model_asset_path=model_path),
+face_options = FaceLandmarkerOptions(
+    base_options=BaseOptions(model_asset_path=face_model_path),
     running_mode=VisionRunningMode.LIVE_STREAM,
     num_faces=1,
-    result_callback=print_result)
+    result_callback=face_print_result)
 
-with FaceLandmarker.create_from_options(options) as landmarker:
+def hand_print_result(result: HandLandmarkerResult, output_image: mp.Image, timestamp_ms: int):
+    print('hand landmarker result: {}'.format(result))
+    global latest_hand_result
+    latest_hand_result = result
+
+hand_options = HandLandmarkerOptions(
+    base_options=BaseOptions(model_asset_path=hand_model_path),
+    running_mode=VisionRunningMode.LIVE_STREAM,
+    num_hands=2,
+    result_callback=hand_print_result)
+
+with FaceLandmarker.create_from_options(face_options) as face_landmarker:
+  # The landmarker is initialized. Use it here.
+  with HandLandmarker.create_from_options(hand_options) as hand_landmarker:
   # The landmarker is initialized. Use it here.
     stream = cv2.VideoCapture(0)
 
@@ -117,11 +136,12 @@ with FaceLandmarker.create_from_options(options) as landmarker:
 
         last_timestamp_ms = timestamp_ms
 
-        landmarker.detect_async(mp_image, timestamp_ms)
+        face_landmarker.detect_async(mp_image, timestamp_ms)
+        hand_landmarker.detect_async(mp_image, timestamp_ms)
 
-        if latest_result and latest_result.face_landmarks:
+        if latest_face_result and latest_face_result.face_landmarks:
             h, w = frame.shape[:2]
-            face_landmarks = latest_result.face_landmarks[0]
+            face_landmarks = latest_face_result.face_landmarks[0]
 
             mouth_indices = [61, 291, 13, 14]
             for index in mouth_indices:
@@ -164,6 +184,16 @@ with FaceLandmarker.create_from_options(options) as landmarker:
             cv2.putText(frame, mouth_status, (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
             if pill_in_mouth and mouth_ratio > 0.1:
                 cv2.putText(frame, "Pill Entering Mouth", (30, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+        if latest_hand_result and latest_hand_result.hand_landmarks:
+            h, w = frame.shape[:2]
+
+            for hand_landmarks in latest_hand_result.hand_landmarks:
+                for lm in hand_landmarks:
+                    x = int(lm.x * w)
+                    y = int(lm.y * h)
+
+                    cv2.circle(frame, (x, y), 2, (255, 0, 0), -1)
 
         cv2.imshow("Webcam", frame)
         cv2.imshow("Pill Mask", mask)
