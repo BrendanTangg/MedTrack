@@ -63,70 +63,6 @@ with FaceLandmarker.create_from_options(face_options) as face_landmarker:
             print("No more stream :(")
             break
 
-        # Convert the frame from BGR to HSV
-        hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-        # White color range
-        lower_white = np.array([0, 0, 160])
-        upper_white = np.array([179, 45, 255])
-
-        # Create mask for white pixels
-        mask = cv2.inRange(hsv_frame, lower_white, upper_white)
-
-        kernel = np.ones((3, 3), np.uint8)
-
-        mask = cv2.morphologyEx(
-            mask,
-            cv2.MORPH_CLOSE,
-            kernel
-        )
-
-        # Find white objects
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        pill_center = None
-
-        best_contour = None
-        best_score = -1
-
-        for contour in contours:
-            area = cv2.contourArea(contour)
-
-            if area < 20 or area > 40:
-                continue
-
-            x, y, pill_w, pill_h = cv2.boundingRect(contour)
-
-            aspect_ratio = pill_w / pill_h
-
-            if not (0.5 < aspect_ratio < 2.5):
-                continue
-
-            print(
-                "area:", area,
-                "width:", pill_w,
-                "height:", pill_h,
-                "aspect:", round(aspect_ratio, 2)
-            )
-
-            score = area
-
-            if score > best_score:
-                best_score = score
-                best_contour = contour
-
-        if best_contour is not None:
-            x, y, pill_w, pill_h = cv2.boundingRect(best_contour)
-
-            pill_x = x + pill_w // 2
-            pill_y = y + pill_h // 2
-
-            pill_center = (pill_x, pill_y)
-
-            cv2.rectangle(frame, (x, y), (x+pill_w, y+pill_h), (0, 255, 255), 2)
-            cv2.circle(frame, pill_center, 3, (0, 255, 255), -1)
-            cv2.putText(frame, "Pill", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
         timestamp_ms = int((time.monotonic()-start_time)*1000)
@@ -172,18 +108,8 @@ with FaceLandmarker.create_from_options(face_options) as face_landmarker:
             else:
                 mouth_status = "Mouth Closed"
 
-            pill_in_mouth = False
-
-            if pill_center is not None:
-                pill_x, pill_y = pill_center
-
-                if (left_x < pill_x < right_x and upper_y < pill_y < lower_y):
-                    pill_in_mouth = True
-
             cv2.rectangle(frame, (left_x, upper_y), (right_x, lower_y), (255, 0, 255), 2)
             cv2.putText(frame, mouth_status, (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-            if pill_in_mouth and mouth_ratio > 0.1:
-                cv2.putText(frame, "Pill Entering Mouth", (30, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
         if latest_hand_result and latest_hand_result.hand_landmarks:
             h, w = frame.shape[:2]
@@ -198,8 +124,6 @@ with FaceLandmarker.create_from_options(face_options) as face_landmarker:
                     hand_xs.append(x)
                     hand_ys.append(y)
 
-                    cv2.circle(frame, (x, y), 2, (255, 0, 0), -1)
-
                 padding = 20
 
                 hand_left = max(0, min(hand_xs) - padding)
@@ -208,12 +132,61 @@ with FaceLandmarker.create_from_options(face_options) as face_landmarker:
                 hand_top = max(0, min(hand_ys) - padding)
                 hand_bottom = min(h, max(hand_ys) + padding)
 
-                cv2.rectangle(frame, (hand_left, hand_top), (hand_right, hand_bottom), (255, 0, 0))
+                hand_region = frame[hand_top:hand_bottom, hand_left:hand_right].copy()
 
-                hand_region = frame[hand_top:hand_bottom, hand_left:hand_right]
+                # Convert the frame from BGR to HSV
+                hsv_frame = cv2.cvtColor(hand_region, cv2.COLOR_BGR2HSV)
+        
+                # White color range
+                lower_white = np.array([0, 0, 160])
+                upper_white = np.array([179, 45, 255])
+        
+                # Create mask for white pixels
+                mask = cv2.inRange(hsv_frame, lower_white, upper_white)
+        
+                kernel = np.ones((3, 3), np.uint8)
+        
+                mask = cv2.morphologyEx(
+                    mask,
+                    cv2.MORPH_CLOSE,
+                    kernel
+                )
+
+                # Find white objects
+                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+                for contour in contours:
+                    area = cv2.contourArea(contour)
+        
+                    if area < 20:
+                        continue
+        
+                    x, y, pill_w, pill_h = cv2.boundingRect(contour)
+        
+                    aspect_ratio = pill_w / pill_h
+        
+                    if not (0.5 < aspect_ratio < 2.5):
+                        continue
+        
+                    full_x = hand_left + x
+                    full_y = hand_top + y
+        
+                    pill_x = full_x + pill_w // 2
+                    pill_y = full_y + pill_h // 2
+        
+                    cv2.rectangle(frame, (full_x, full_y), (full_x + pill_w, full_y + pill_h), (0, 255, 255), 2)
+                    cv2.circle(frame, (pill_x, pill_y), 3, (0, 255, 255), -1)
+                    cv2.putText(frame, "Pill", (full_x, full_y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+
+                for lm in hand_landmarks:
+                    x = int(lm.x * w)
+                    y = int(lm.y * h)
+
+                    cv2.circle(frame, (x, y), 2, (255, 0, 0), -1)
+                    cv2.rectangle(frame, (hand_left, hand_top), (hand_right, hand_bottom), (255, 0, 0))
+
 
         cv2.imshow("Webcam", frame)
-        cv2.imshow("Pill Mask", mask)
         if cv2.waitKey(1) == ord('q'):
             break
 
