@@ -155,6 +155,9 @@ with FaceLandmarker.create_from_options(face_options) as face_landmarker:
                 # Find white objects
                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+                best_candidate = None
+                best_score = float("inf")
+
                 for contour in contours:
                     area = cv2.contourArea(contour)
         
@@ -162,20 +165,51 @@ with FaceLandmarker.create_from_options(face_options) as face_landmarker:
                         continue
         
                     x, y, pill_w, pill_h = cv2.boundingRect(contour)
+
+                    if pill_h == 0:
+                        continue
         
                     aspect_ratio = pill_w / pill_h
         
                     if not (0.5 < aspect_ratio < 2.5):
                         continue
+
+                    target_area = 120
+                    target_aspect = 1.3
+
+                    area_difference = abs(area - target_area)
+                    aspect_difference = abs(aspect_ratio - target_aspect)
+
+                    score = area_difference + 100 * aspect_difference
+
+                    if score < best_score:
+                        best_score = score
+
+                        best_candidate = {
+                            "x": x,
+                            "y": y,
+                            "w": pill_w,
+                            "h": pill_h,
+                            "area": area,
+                            "aspect": aspect_ratio
+                        }
+
+                if best_candidate is not None:
+                    x = best_candidate["x"]
+                    y = best_candidate["y"]
+                    pill_w = best_candidate["w"]
+                    pill_h = best_candidate["h"]
         
                     full_x = hand_left + x
                     full_y = hand_top + y
         
                     pill_x = full_x + pill_w // 2
                     pill_y = full_y + pill_h // 2
+
+                    pill_center = (pill_x, pill_y)
         
                     cv2.rectangle(frame, (full_x, full_y), (full_x + pill_w, full_y + pill_h), (0, 255, 255), 2)
-                    cv2.circle(frame, (pill_x, pill_y), 3, (0, 255, 255), -1)
+                    cv2.circle(frame, pill_center, 3, (0, 255, 255), -1)
                     cv2.putText(frame, "Pill", (full_x, full_y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
                 for lm in hand_landmarks:
