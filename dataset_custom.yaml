@@ -1,0 +1,6 @@
+train: /home/brendantang/personal_projects/MedTrack/train
+val: /home/brendantang/personal_projects/MedTrack/val
+
+nc: 1
+
+names: ["pill"]
