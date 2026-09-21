@@ -1,1 +1,29 @@
 .venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# YOLO generated output
+runs/
+
+# Dataset folders
+train/
+val/
+test/
+
+# Label Studio exports
+project-*/
+
+# Training checkpoints
+weights/
+
+# Downloaded pretrained YOLO models
+yolo*.pt
+
+# Linux installer/package files
+*.deb
+*.rpm
+
+# Misc system files
+.DS_Store
